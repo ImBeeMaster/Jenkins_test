@@ -1,0 +1,82 @@
+pipeline {
+ 
+  agent any
+  parameters {
+      choice(choices: 'yes\nno', description: 'Are you sure you want to execute this test?', name: 'run_test_only')
+      choice(choices: "yes\nno", description: 'Archiving war?', name: 'archive_var')
+      string(defaultValue: "alexeypasichnik2.71828@gmail.com", description: 'email for notification', name: 'notification_email')
+  }
+enironment {
+    firstEnvVar= 'FIRST_VAR'
+    secondEnvVar= 'SECOND_VAR'
+    thirdEnvVar= 'THIRD_VAR'
+}
+   stages {
+       stage('Test') {
+           when {  // conditional for parameter
+               environment name: 'run_test_only', value: 'yes'
+           }
+           steps{
+               sh 'cd examples/java-calculator && mvn clean integration-test'
+           }
+       }
+       stage ('Run demo paralel stages') {
+           steps{
+               paralel(
+                   "Parallel stage #1":
+                        {
+                        script{
+                                if (env.run_test_only =='yes')
+                            {
+                                echo env.firstEnvVar
+                            }
+                            else 
+                            {
+                                echo env.secondEnvVar
+                            }
+                        }
+
+
+                    },
+                    "Paralel stage #2":{
+                        echo "$thirdEnvVar"
+                    }
+               )
+               
+           }
+       }
+   }
+
+post {
+   success {
+       echo "Test succeeded"
+             script {
+               mail(bcc: '',
+                    body: "Run ${JOB_NAME}-#${BUILD_NUMBER} succeeded. To get more details, visit the build result page: ${BUILD_URL}"
+                    cc: ''
+                    from: 'alexeypasichnik2.71828@gmail.com',
+                    replyTo:'',
+                    subject: "${JOB_NAME} ${BUILD_NUMBER} succeeded",
+                    to: env.notification_email)
+                    {
+                        archiveArtifacts '**/java-calculator-*-SNAPSHOT.jar'
+                    }
+                    cucumber fileIncludePattern: '**/java-calculator/target/cucumber-report.json', sortingMetod: 'ALPHABETICAL' 
+             }
+   }
+   failure {
+       echo "Test failed"
+       mail(bcc: '',
+            body: "Run ${JOB_NAME}-#${BUILD_NUMBER} failed. To get more details, visit the build result page: ${BUILD_URL}"
+            cc: ''
+            from: 'alexeypasichnik2.71828@gmail.com',
+            replyTo:'',
+            subject: "${JOB_NAME} ${BUILD_NUMBER} failed",
+            to: env.notification_email)
+            cucumber fileIncludePattern: '**/java-calculator/target/cucumber-report.json', sortingMethod: 'ALPHABETICAL'
+            
+   }
+
+}
+
+}
